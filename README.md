@@ -20,7 +20,7 @@ python app/main.py
 Для запуска без командной строки в Windows используйте:
 
 ```bash
-pythonw app/main.pyw
+pythonw app/main.py
 ```
 
 ## Примечания
