@@ -2,13 +2,14 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from urllib.request import Request, urlopen
 import zipfile
 import tarfile
 
-FACTORIO_URL = "https://update.clusterio.tricki.ru/files/factroio.zip"
+FACTORIO_URL = "https://update.clusterio.tricki.ru/files/factorio.zip"
 MODS_URL = "https://update.clusterio.tricki.ru/files/mods.zip"
 
 
@@ -25,6 +26,7 @@ def download_file(
     dest_path: str,
     status_callback,
     progress_callback,
+    info_callback,
 ) -> None:
     request = Request(url, headers={"User-Agent": "cluster-factorio-installer"})
     with urlopen(request) as response, open(dest_path, "wb") as dest:
@@ -32,20 +34,37 @@ def download_file(
         total_size = int(total) if total else None
         downloaded = 0
         chunk_size = 1024 * 256
+        last_time = time.perf_counter()
+        last_downloaded = 0
         while True:
             chunk = response.read(chunk_size)
             if not chunk:
                 break
             dest.write(chunk)
             downloaded += len(chunk)
+            percent = None
             if total_size:
+                percent = downloaded / total_size * 100
                 status_callback(
                     f"Загрузка: {human_bytes(downloaded)} / {human_bytes(total_size)}"
                 )
-                progress_callback(downloaded / total_size * 100)
+                progress_callback(percent)
             else:
                 status_callback(f"Загрузка: {human_bytes(downloaded)}")
                 progress_callback(0)
+            now = time.perf_counter()
+            elapsed = now - last_time
+            if elapsed >= 0.4:
+                speed = (downloaded - last_downloaded) / elapsed
+                info_callback(
+                    downloaded,
+                    total_size,
+                    speed,
+                    percent if total_size else None,
+                )
+                last_time = now
+                last_downloaded = downloaded
+        info_callback(downloaded, total_size, 0.0, 100.0 if total_size else None)
 
 
 def extract_archive(
@@ -121,6 +140,8 @@ class InstallerApp(tk.Tk):
         self.configure(bg="#0f172a")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
+        self.download_info_var = tk.StringVar(value="Скорость: — • Объем: — • 0%")
+        self.extract_info_var = tk.StringVar(value="Распаковка: 0%")
         self.download_progress = tk.DoubleVar(value=0)
         self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
@@ -240,6 +261,12 @@ class InstallerApp(tk.Tk):
 
         ttk.Label(
             progress_frame,
+            textvariable=self.download_info_var,
+            style="Subtitle.TLabel",
+        ).pack(anchor="w", pady=(0, 12))
+
+        ttk.Label(
+            progress_frame,
             text="Распаковка",
             style="Status.TLabel",
         ).pack(anchor="w")
@@ -250,6 +277,12 @@ class InstallerApp(tk.Tk):
             maximum=100,
         )
         self.extract_bar.pack(fill="x", pady=(6, 0))
+
+        ttk.Label(
+            progress_frame,
+            textvariable=self.extract_info_var,
+            style="Subtitle.TLabel",
+        ).pack(anchor="w", pady=(6, 0))
 
         status_label = ttk.Label(
             self,
@@ -277,13 +310,31 @@ class InstallerApp(tk.Tk):
         self.download_progress.set(value)
         self.update_idletasks()
 
+    def _set_download_info(
+        self,
+        downloaded: int,
+        total: int | None,
+        speed: float,
+        percent: float | None,
+    ) -> None:
+        total_text = human_bytes(total) if total else "—"
+        percent_text = f"{percent:.1f}%" if percent is not None else "—"
+        speed_text = f"{human_bytes(speed)}/с" if speed else "—"
+        self.download_info_var.set(
+            f"Скорость: {speed_text} • Объем: {human_bytes(downloaded)} / {total_text} • {percent_text}"
+        )
+        self.update_idletasks()
+
     def _set_extract_progress(self, value: float) -> None:
         self.extract_progress.set(value)
+        self.extract_info_var.set(f"Распаковка: {value:.1f}%")
         self.update_idletasks()
 
     def _reset_progress(self) -> None:
         self.download_progress.set(0)
         self.extract_progress.set(0)
+        self.download_info_var.set("Скорость: — • Объем: — • 0%")
+        self.extract_info_var.set("Распаковка: 0%")
         self.update_idletasks()
 
     def _start_install_game(self) -> None:
@@ -313,6 +364,7 @@ class InstallerApp(tk.Tk):
                     archive_path,
                     self._set_status,
                     self._set_download_progress,
+                    self._set_download_info,
                 )
                 extract_archive(
                     archive_path,
@@ -337,6 +389,7 @@ class InstallerApp(tk.Tk):
                     archive_path,
                     self._set_status,
                     self._set_download_progress,
+                    self._set_download_info,
                 )
                 extracted_dir = os.path.join(temp_dir, "mods")
                 os.makedirs(extracted_dir, exist_ok=True)
