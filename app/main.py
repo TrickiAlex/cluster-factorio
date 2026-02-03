@@ -124,6 +124,12 @@ def extract_archive(
     raise ValueError("Не удалось определить формат архива.")
 
 
+def fetch_text(url: str) -> str:
+    request = Request(url, headers={"User-Agent": "cluster-factorio-installer"})
+    with urlopen(request, timeout=10) as response:
+        return response.read().decode("utf-8", errors="replace").strip()
+
+
 def sync_directory(source_dir: str, target_dir: str) -> None:
     if os.path.exists(target_dir):
         for entry in os.listdir(target_dir):
@@ -165,11 +171,13 @@ class InstallerApp(tk.Tk):
         self.configure(bg="#15130f")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
+        self.server_status_var = tk.StringVar(value="Статус серверов: проверка...")
         self.download_info_var = tk.StringVar(value="Скорость: — • Объем: — • 0%")
         self.extract_info_var = tk.StringVar(value="Файлы: — • 0%")
         self.download_progress = tk.DoubleVar(value=0)
         self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
+        self._refresh_server_status()
 
     def _create_widgets(self) -> None:
         style = ttk.Style(self)
@@ -246,6 +254,22 @@ class InstallerApp(tk.Tk):
         )
         subtitle.pack(anchor="w", pady=(4, 0))
 
+        status_row = ttk.Frame(header, style="Card.TFrame")
+        status_row.pack(fill="x", pady=(10, 0))
+
+        ttk.Label(
+            status_row,
+            textvariable=self.server_status_var,
+            style="Status.TLabel",
+        ).pack(side="left")
+
+        ttk.Button(
+            status_row,
+            text="Обновить статус",
+            style="Secondary.TButton",
+            command=self._refresh_server_status,
+        ).pack(side="right")
+
         button_frame = ttk.Frame(self, style="Card.TFrame", padding=16)
         button_frame.pack(fill="x", padx=18, pady=8)
 
@@ -264,6 +288,22 @@ class InstallerApp(tk.Tk):
             command=self._start_update_mods,
         )
         update_btn.grid(row=0, column=1, padx=12, pady=4, sticky="ew")
+
+        info_btn = ttk.Button(
+            button_frame,
+            text="Информация",
+            style="Secondary.TButton",
+            command=self._show_info,
+        )
+        info_btn.grid(row=1, column=0, padx=12, pady=4, sticky="ew")
+
+        close_btn = ttk.Button(
+            button_frame,
+            text="Закрыть",
+            style="Secondary.TButton",
+            command=self.destroy,
+        )
+        close_btn.grid(row=1, column=1, padx=12, pady=4, sticky="ew")
 
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
@@ -369,6 +409,32 @@ class InstallerApp(tk.Tk):
         self.download_info_var.set("Скорость: — • Объем: — • 0%")
         self.extract_info_var.set("Файлы: — • 0%")
         self.update_idletasks()
+
+    def _refresh_server_status(self) -> None:
+        threading.Thread(target=self._load_server_status, daemon=True).start()
+
+    def _load_server_status(self) -> None:
+        try:
+            status_text = fetch_text("https://update.clusterio.tricki.ru/status.php")
+            message = (
+                f"Статус серверов: {status_text}"
+                if status_text
+                else "Статус серверов: нет данных"
+            )
+        except Exception as exc:  # noqa: BLE001
+            message = f"Статус серверов: ошибка ({exc})"
+        self.server_status_var.set(message)
+        self.update_idletasks()
+
+    def _show_info(self) -> None:
+        try:
+            info_text = fetch_text("https://update.clusterio.tricki.ru/info.php")
+            messagebox.showinfo(
+                "Информация",
+                info_text if info_text else "Информация недоступна.",
+            )
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Ошибка", str(exc))
 
     def _start_install_game(self) -> None:
         target_dir = filedialog.askdirectory(

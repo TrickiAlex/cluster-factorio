@@ -6,6 +6,8 @@
 
 - **Установить игру**: скачивает архив с `https://update.clusterio.tricki.ru/files/factorio.zip` и распаковывает в выбранную пользователем папку (с прогрессом загрузки и распаковки).
 - **Обновить моды**: скачивает архив с `https://update.clusterio.tricki.ru/files/mods.zip` и синхронизирует содержимое в `%APPDATA%\Factorio\mods` (с прогрессом загрузки и распаковки).
+- **Статус серверов**: отображает состояние серверов по `https://update.clusterio.tricki.ru/status.php`.
+- **Информация**: показывает содержимое страницы `https://update.clusterio.tricki.ru/info.php`.
 
 ## Запуск
 
