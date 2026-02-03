@@ -4,8 +4,8 @@
 
 ## Возможности
 
-- **Установить игру**: скачивает архив с `https://update.clusterio.tricki.ru/files/factroio.zip` и распаковывает в выбранную пользователем папку.
-- **Обновить моды**: скачивает архив с `https://update.clusterio.tricki.ru/files/mods.zip` и синхронизирует содержимое в `%APPDATA%\Factorio\mods`.
+- **Установить игру**: скачивает архив с `https://update.clusterio.tricki.ru/files/factroio.zip` и распаковывает в выбранную пользователем папку (с прогрессом загрузки и распаковки).
+- **Обновить моды**: скачивает архив с `https://update.clusterio.tricki.ru/files/mods.zip` и синхронизирует содержимое в `%APPDATA%\Factorio\mods` (с прогрессом загрузки и распаковки).
 
 ## Запуск
 

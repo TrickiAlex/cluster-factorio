@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from urllib.request import Request, urlopen
 import zipfile
 import tarfile
@@ -20,7 +20,12 @@ def human_bytes(value: int) -> str:
     return f"{value:.1f} TB"
 
 
-def download_file(url: str, dest_path: str, status_callback) -> None:
+def download_file(
+    url: str,
+    dest_path: str,
+    status_callback,
+    progress_callback,
+) -> None:
     request = Request(url, headers={"User-Agent": "cluster-factorio-installer"})
     with urlopen(request) as response, open(dest_path, "wb") as dest:
         total = response.headers.get("Content-Length")
@@ -37,20 +42,39 @@ def download_file(url: str, dest_path: str, status_callback) -> None:
                 status_callback(
                     f"Загрузка: {human_bytes(downloaded)} / {human_bytes(total_size)}"
                 )
+                progress_callback(downloaded / total_size * 100)
             else:
                 status_callback(f"Загрузка: {human_bytes(downloaded)}")
+                progress_callback(0)
 
 
-def extract_archive(archive_path: str, target_dir: str, status_callback) -> None:
+def extract_archive(
+    archive_path: str,
+    target_dir: str,
+    status_callback,
+    progress_callback,
+) -> None:
     status_callback("Распаковка архива...")
     if zipfile.is_zipfile(archive_path):
         with zipfile.ZipFile(archive_path, "r") as archive:
-            archive.extractall(target_dir)
+            members = archive.infolist()
+            total = len(members)
+            if total == 0:
+                progress_callback(100)
+            for index, member in enumerate(members, start=1):
+                archive.extract(member, target_dir)
+                progress_callback(index / total * 100)
         return
 
     if tarfile.is_tarfile(archive_path):
         with tarfile.open(archive_path, "r:*") as archive:
-            archive.extractall(target_dir)
+            members = archive.getmembers()
+            total = len(members)
+            if total == 0:
+                progress_callback(100)
+            for index, member in enumerate(members, start=1):
+                archive.extract(member, target_dir)
+                progress_callback(index / total * 100)
         return
 
     raise ValueError("Не удалось определить формат архива.")
@@ -92,54 +116,174 @@ class InstallerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Clusterio Factorio Installer")
-        self.geometry("520x260")
+        self.geometry("640x380")
         self.resizable(False, False)
+        self.configure(bg="#0f172a")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
+        self.download_progress = tk.DoubleVar(value=0)
+        self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
 
     def _create_widgets(self) -> None:
-        title = tk.Label(
-            self,
-            text="Установка Factorio и синхронизация модов",
-            font=("Segoe UI", 12, "bold"),
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure(
+            "Card.TFrame",
+            background="#111827",
         )
-        title.pack(pady=16)
+        style.configure(
+            "Title.TLabel",
+            background="#0f172a",
+            foreground="#f8fafc",
+            font=("Segoe UI", 16, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background="#0f172a",
+            foreground="#cbd5f5",
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Status.TLabel",
+            background="#111827",
+            foreground="#e2e8f0",
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Primary.TButton",
+            font=("Segoe UI", 11, "bold"),
+            background="#6366f1",
+            foreground="#ffffff",
+            padding=10,
+        )
+        style.map(
+            "Primary.TButton",
+            background=[("active", "#4f46e5")],
+        )
+        style.configure(
+            "Secondary.TButton",
+            font=("Segoe UI", 11, "bold"),
+            background="#0ea5e9",
+            foreground="#ffffff",
+            padding=10,
+        )
+        style.map(
+            "Secondary.TButton",
+            background=[("active", "#0284c7")],
+        )
+        style.configure(
+            "Download.Horizontal.TProgressbar",
+            troughcolor="#1f2937",
+            background="#6366f1",
+        )
+        style.configure(
+            "Extract.Horizontal.TProgressbar",
+            troughcolor="#1f2937",
+            background="#0ea5e9",
+        )
 
-        button_frame = tk.Frame(self)
-        button_frame.pack(pady=8)
+        header = ttk.Frame(self, style="Card.TFrame", padding=16)
+        header.pack(fill="x", padx=18, pady=(18, 8))
 
-        install_btn = tk.Button(
+        title = ttk.Label(
+            header,
+            text="Clusterio Factorio Installer",
+            style="Title.TLabel",
+        )
+        title.pack(anchor="w")
+
+        subtitle = ttk.Label(
+            header,
+            text="Быстрая установка игры и синхронизация модов в один клик.",
+            style="Subtitle.TLabel",
+        )
+        subtitle.pack(anchor="w", pady=(4, 0))
+
+        button_frame = ttk.Frame(self, style="Card.TFrame", padding=16)
+        button_frame.pack(fill="x", padx=18, pady=8)
+
+        install_btn = ttk.Button(
             button_frame,
             text="Установить игру",
-            width=24,
+            style="Primary.TButton",
             command=self._start_install_game,
         )
-        install_btn.grid(row=0, column=0, padx=12)
+        install_btn.grid(row=0, column=0, padx=12, pady=4, sticky="ew")
 
-        update_btn = tk.Button(
+        update_btn = ttk.Button(
             button_frame,
             text="Обновить моды",
-            width=24,
+            style="Secondary.TButton",
             command=self._start_update_mods,
         )
-        update_btn.grid(row=0, column=1, padx=12)
+        update_btn.grid(row=0, column=1, padx=12, pady=4, sticky="ew")
 
-        status_label = tk.Label(self, textvariable=self.status_var, wraplength=480)
-        status_label.pack(pady=18)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
 
-        info = tk.Label(
+        progress_frame = ttk.Frame(self, style="Card.TFrame", padding=16)
+        progress_frame.pack(fill="x", padx=18, pady=8)
+
+        ttk.Label(
+            progress_frame,
+            text="Загрузка",
+            style="Status.TLabel",
+        ).pack(anchor="w")
+        self.download_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.download_progress,
+            style="Download.Horizontal.TProgressbar",
+            maximum=100,
+        )
+        self.download_bar.pack(fill="x", pady=(6, 12))
+
+        ttk.Label(
+            progress_frame,
+            text="Распаковка",
+            style="Status.TLabel",
+        ).pack(anchor="w")
+        self.extract_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.extract_progress,
+            style="Extract.Horizontal.TProgressbar",
+            maximum=100,
+        )
+        self.extract_bar.pack(fill="x", pady=(6, 0))
+
+        status_label = ttk.Label(
+            self,
+            textvariable=self.status_var,
+            style="Status.TLabel",
+            wraplength=560,
+        )
+        status_label.pack(pady=(6, 0))
+
+        info = ttk.Label(
             self,
             text=(
-                "Источник: update.clusterio.tricki.ru\n"
-                "Моды будут синхронизированы в %APPDATA%\\Factorio\\mods"
+                "Источник: update.clusterio.tricki.ru • "
+                "Моды синхронизируются в %APPDATA%\\Factorio\\mods"
             ),
-            fg="#555",
+            style="Subtitle.TLabel",
         )
-        info.pack(pady=4)
+        info.pack(pady=(0, 12))
 
     def _set_status(self, message: str) -> None:
         self.status_var.set(message)
+        self.update_idletasks()
+
+    def _set_download_progress(self, value: float) -> None:
+        self.download_progress.set(value)
+        self.update_idletasks()
+
+    def _set_extract_progress(self, value: float) -> None:
+        self.extract_progress.set(value)
+        self.update_idletasks()
+
+    def _reset_progress(self) -> None:
+        self.download_progress.set(0)
+        self.extract_progress.set(0)
         self.update_idletasks()
 
     def _start_install_game(self) -> None:
@@ -148,6 +292,7 @@ class InstallerApp(tk.Tk):
         )
         if not target_dir:
             return
+        self._reset_progress()
         threading.Thread(
             target=self._install_game,
             args=(target_dir,),
@@ -155,6 +300,7 @@ class InstallerApp(tk.Tk):
         ).start()
 
     def _start_update_mods(self) -> None:
+        self._reset_progress()
         threading.Thread(target=self._update_mods, daemon=True).start()
 
     def _install_game(self, target_dir: str) -> None:
@@ -162,8 +308,18 @@ class InstallerApp(tk.Tk):
             self._set_status("Загрузка Factorio...")
             with tempfile.TemporaryDirectory() as temp_dir:
                 archive_path = os.path.join(temp_dir, "factorio_archive")
-                download_file(FACTORIO_URL, archive_path, self._set_status)
-                extract_archive(archive_path, target_dir, self._set_status)
+                download_file(
+                    FACTORIO_URL,
+                    archive_path,
+                    self._set_status,
+                    self._set_download_progress,
+                )
+                extract_archive(
+                    archive_path,
+                    target_dir,
+                    self._set_status,
+                    self._set_extract_progress,
+                )
             self._set_status("Factorio установлен.")
             messagebox.showinfo("Готово", "Factorio успешно установлен.")
         except Exception as exc:  # noqa: BLE001
@@ -176,10 +332,20 @@ class InstallerApp(tk.Tk):
             self._set_status("Загрузка модов...")
             with tempfile.TemporaryDirectory() as temp_dir:
                 archive_path = os.path.join(temp_dir, "mods_archive")
-                download_file(MODS_URL, archive_path, self._set_status)
+                download_file(
+                    MODS_URL,
+                    archive_path,
+                    self._set_status,
+                    self._set_download_progress,
+                )
                 extracted_dir = os.path.join(temp_dir, "mods")
                 os.makedirs(extracted_dir, exist_ok=True)
-                extract_archive(archive_path, extracted_dir, self._set_status)
+                extract_archive(
+                    archive_path,
+                    extracted_dir,
+                    self._set_status,
+                    self._set_extract_progress,
+                )
                 sync_directory(extracted_dir, mods_dir)
             self._set_status("Моды синхронизированы.")
             messagebox.showinfo("Готово", "Моды успешно обновлены.")
