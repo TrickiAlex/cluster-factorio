@@ -130,6 +130,16 @@ def fetch_text(url: str) -> str:
         return response.read().decode("utf-8", errors="replace").strip()
 
 
+def check_server_online(url: str) -> bool:
+    request = Request(url, headers={"User-Agent": "cluster-factorio-installer"})
+    try:
+        with urlopen(request, timeout=6) as response:
+            status = response.getcode()
+            return status is not None and 200 <= status < 400
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def sync_directory(source_dir: str, target_dir: str) -> None:
     if os.path.exists(target_dir):
         for entry in os.listdir(target_dir):
@@ -171,7 +181,7 @@ class InstallerApp(tk.Tk):
         self.configure(bg="#15130f")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
-        self.server_status_var = tk.StringVar(value="Статус серверов: проверка...")
+        self.server_status_var = tk.StringVar(value="Статус сервера обновлений: проверка...")
         self.download_info_var = tk.StringVar(value="Скорость: — • Объем: — • 0%")
         self.extract_info_var = tk.StringVar(value="Файлы: — • 0%")
         self.download_progress = tk.DoubleVar(value=0)
@@ -269,11 +279,14 @@ class InstallerApp(tk.Tk):
         status_row = ttk.Frame(header, style="Card.TFrame")
         status_row.pack(fill="x", pady=(10, 0))
 
-        ttk.Label(
+        self.server_status_label = tk.Label(
             status_row,
             textvariable=self.server_status_var,
-            style="Status.TLabel",
-        ).pack(side="left")
+            bg="#1f1a16",
+            fg="#f2e8d5",
+            font=("Segoe UI", 10, "bold"),
+        )
+        self.server_status_label.pack(side="left")
 
         button_frame = ttk.Frame(self, style="Card.TFrame", padding=16)
         button_frame.pack(fill="x", padx=18, pady=8)
@@ -419,16 +432,15 @@ class InstallerApp(tk.Tk):
         threading.Thread(target=self._load_server_status, daemon=True).start()
 
     def _load_server_status(self) -> None:
-        try:
-            status_text = fetch_text("https://update.clusterio.tricki.ru/status.php")
-            message = (
-                f"Статус серверов: {status_text}"
-                if status_text
-                else "Статус серверов: нет данных"
-            )
-        except Exception as exc:  # noqa: BLE001
-            message = f"Статус серверов: ошибка ({exc})"
+        online = check_server_online("https://update.clusterio.tricki.ru")
+        if online:
+            message = "Статус сервера обновлений: в сети"
+            color = "#22c55e"
+        else:
+            message = "Статус сервера обновлений: недоступен"
+            color = "#ef4444"
         self.server_status_var.set(message)
+        self.server_status_label.configure(fg=color)
         self.update_idletasks()
 
     def _start_accent_animation(self) -> None:
