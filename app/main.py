@@ -72,6 +72,7 @@ def extract_archive(
     target_dir: str,
     status_callback,
     progress_callback,
+    info_callback,
 ) -> None:
     status_callback("Распаковка архива...")
     if zipfile.is_zipfile(archive_path):
@@ -80,9 +81,21 @@ def extract_archive(
             total = len(members)
             if total == 0:
                 progress_callback(100)
+                info_callback(0, 0, 0.0)
+                return
+            last_time = time.perf_counter()
+            last_index = 0
             for index, member in enumerate(members, start=1):
                 archive.extract(member, target_dir)
                 progress_callback(index / total * 100)
+                now = time.perf_counter()
+                elapsed = now - last_time
+                if elapsed >= 0.3:
+                    speed = (index - last_index) / elapsed
+                    info_callback(index, total, speed)
+                    last_time = now
+                    last_index = index
+            info_callback(total, total, 0.0)
         return
 
     if tarfile.is_tarfile(archive_path):
@@ -91,9 +104,21 @@ def extract_archive(
             total = len(members)
             if total == 0:
                 progress_callback(100)
+                info_callback(0, 0, 0.0)
+                return
+            last_time = time.perf_counter()
+            last_index = 0
             for index, member in enumerate(members, start=1):
                 archive.extract(member, target_dir)
                 progress_callback(index / total * 100)
+                now = time.perf_counter()
+                elapsed = now - last_time
+                if elapsed >= 0.3:
+                    speed = (index - last_index) / elapsed
+                    info_callback(index, total, speed)
+                    last_time = now
+                    last_index = index
+            info_callback(total, total, 0.0)
         return
 
     raise ValueError("Не удалось определить формат архива.")
@@ -134,14 +159,14 @@ def ensure_appdata_mods_dir() -> str:
 class InstallerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Clusterio Factorio Installer")
-        self.geometry("640x380")
+        self.title("Tricki Кластер серверов Factorio")
+        self.geometry("720x420")
         self.resizable(False, False)
-        self.configure(bg="#0f172a")
+        self.configure(bg="#15130f")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
         self.download_info_var = tk.StringVar(value="Скорость: — • Объем: — • 0%")
-        self.extract_info_var = tk.StringVar(value="Распаковка: 0%")
+        self.extract_info_var = tk.StringVar(value="Файлы: — • 0%")
         self.download_progress = tk.DoubleVar(value=0)
         self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
@@ -151,57 +176,57 @@ class InstallerApp(tk.Tk):
         style.theme_use("clam")
         style.configure(
             "Card.TFrame",
-            background="#111827",
+            background="#1f1a16",
         )
         style.configure(
             "Title.TLabel",
-            background="#0f172a",
-            foreground="#f8fafc",
+            background="#15130f",
+            foreground="#f2e8d5",
             font=("Segoe UI", 16, "bold"),
         )
         style.configure(
             "Subtitle.TLabel",
-            background="#0f172a",
-            foreground="#cbd5f5",
+            background="#15130f",
+            foreground="#d4b483",
             font=("Segoe UI", 10),
         )
         style.configure(
             "Status.TLabel",
-            background="#111827",
-            foreground="#e2e8f0",
+            background="#1f1a16",
+            foreground="#f2e8d5",
             font=("Segoe UI", 10),
         )
         style.configure(
             "Primary.TButton",
             font=("Segoe UI", 11, "bold"),
-            background="#6366f1",
-            foreground="#ffffff",
+            background="#d97706",
+            foreground="#1a120b",
             padding=10,
         )
         style.map(
             "Primary.TButton",
-            background=[("active", "#4f46e5")],
+            background=[("active", "#f59e0b")],
         )
         style.configure(
             "Secondary.TButton",
             font=("Segoe UI", 11, "bold"),
-            background="#0ea5e9",
-            foreground="#ffffff",
+            background="#9a3412",
+            foreground="#fff7ed",
             padding=10,
         )
         style.map(
             "Secondary.TButton",
-            background=[("active", "#0284c7")],
+            background=[("active", "#c2410c")],
         )
         style.configure(
             "Download.Horizontal.TProgressbar",
-            troughcolor="#1f2937",
-            background="#6366f1",
+            troughcolor="#2a211b",
+            background="#f59e0b",
         )
         style.configure(
             "Extract.Horizontal.TProgressbar",
-            troughcolor="#1f2937",
-            background="#0ea5e9",
+            troughcolor="#2a211b",
+            background="#f97316",
         )
 
         header = ttk.Frame(self, style="Card.TFrame", padding=16)
@@ -209,14 +234,14 @@ class InstallerApp(tk.Tk):
 
         title = ttk.Label(
             header,
-            text="Clusterio Factorio Installer",
+            text="Tricki Кластер серверов Factorio",
             style="Title.TLabel",
         )
         title.pack(anchor="w")
 
         subtitle = ttk.Label(
             header,
-            text="Быстрая установка игры и синхронизация модов в один клик.",
+            text="Factorio в стиле индустриального пламени: установка и моды в один клик.",
             style="Subtitle.TLabel",
         )
         subtitle.pack(anchor="w", pady=(4, 0))
@@ -327,14 +352,22 @@ class InstallerApp(tk.Tk):
 
     def _set_extract_progress(self, value: float) -> None:
         self.extract_progress.set(value)
-        self.extract_info_var.set(f"Распаковка: {value:.1f}%")
+        self.extract_info_var.set(f"Файлы: — • {value:.1f}%")
+        self.update_idletasks()
+
+    def _set_extract_info(self, extracted: int, total: int, speed: float) -> None:
+        percent = extracted / total * 100 if total else 0
+        speed_text = f"{speed:.1f} файл/с" if speed else "—"
+        self.extract_info_var.set(
+            f"Файлы: {extracted} / {total} • {percent:.1f}% • {speed_text}"
+        )
         self.update_idletasks()
 
     def _reset_progress(self) -> None:
         self.download_progress.set(0)
         self.extract_progress.set(0)
         self.download_info_var.set("Скорость: — • Объем: — • 0%")
-        self.extract_info_var.set("Распаковка: 0%")
+        self.extract_info_var.set("Файлы: — • 0%")
         self.update_idletasks()
 
     def _start_install_game(self) -> None:
@@ -371,6 +404,7 @@ class InstallerApp(tk.Tk):
                     target_dir,
                     self._set_status,
                     self._set_extract_progress,
+                    self._set_extract_info,
                 )
             self._set_status("Factorio установлен.")
             messagebox.showinfo("Готово", "Factorio успешно установлен.")
@@ -398,6 +432,7 @@ class InstallerApp(tk.Tk):
                     extracted_dir,
                     self._set_status,
                     self._set_extract_progress,
+                    self._set_extract_info,
                 )
                 sync_directory(extracted_dir, mods_dir)
             self._set_status("Моды синхронизированы.")
