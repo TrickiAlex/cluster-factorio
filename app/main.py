@@ -184,6 +184,8 @@ class InstallerApp(tk.Tk):
         self.server_status_var = tk.StringVar(value="Статус сервера обновлений: проверка...")
         self.download_info_var = tk.StringVar(value="Скорость: — • Объем: — • 0%")
         self.extract_info_var = tk.StringVar(value="Файлы: — • 0%")
+        self.download_percent_var = tk.StringVar(value="0%")
+        self.extract_percent_var = tk.StringVar(value="0%")
         self.download_progress = tk.DoubleVar(value=0)
         self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
@@ -334,13 +336,22 @@ class InstallerApp(tk.Tk):
             text="Загрузка",
             style="Status.TLabel",
         ).pack(anchor="w")
+        download_row = ttk.Frame(progress_frame, style="Card.TFrame")
+        download_row.pack(fill="x", pady=(6, 12))
+
         self.download_bar = ttk.Progressbar(
-            progress_frame,
+            download_row,
             variable=self.download_progress,
             style="Download.Horizontal.TProgressbar",
             maximum=100,
         )
-        self.download_bar.pack(fill="x", pady=(6, 12))
+        self.download_bar.pack(side="left", fill="x", expand=True)
+
+        ttk.Label(
+            download_row,
+            textvariable=self.download_percent_var,
+            style="Status.TLabel",
+        ).pack(side="right", padx=(10, 0))
 
         ttk.Label(
             progress_frame,
@@ -353,13 +364,22 @@ class InstallerApp(tk.Tk):
             text="Распаковка",
             style="Status.TLabel",
         ).pack(anchor="w")
+        extract_row = ttk.Frame(progress_frame, style="Card.TFrame")
+        extract_row.pack(fill="x", pady=(6, 0))
+
         self.extract_bar = ttk.Progressbar(
-            progress_frame,
+            extract_row,
             variable=self.extract_progress,
             style="Extract.Horizontal.TProgressbar",
             maximum=100,
         )
-        self.extract_bar.pack(fill="x", pady=(6, 0))
+        self.extract_bar.pack(side="left", fill="x", expand=True)
+
+        ttk.Label(
+            extract_row,
+            textvariable=self.extract_percent_var,
+            style="Status.TLabel",
+        ).pack(side="right", padx=(10, 0))
 
         ttk.Label(
             progress_frame,
@@ -406,11 +426,13 @@ class InstallerApp(tk.Tk):
         self.download_info_var.set(
             f"Скорость: {speed_text} • Объем: {human_bytes(downloaded)} / {total_text} • {percent_text}"
         )
+        self.download_percent_var.set(percent_text)
         self.update_idletasks()
 
     def _set_extract_progress(self, value: float) -> None:
         self.extract_progress.set(value)
         self.extract_info_var.set(f"Файлы: — • {value:.1f}%")
+        self.extract_percent_var.set(f"{value:.1f}%")
         self.update_idletasks()
 
     def _set_extract_info(self, extracted: int, total: int, speed: float) -> None:
@@ -419,6 +441,7 @@ class InstallerApp(tk.Tk):
         self.extract_info_var.set(
             f"Файлы: {extracted} / {total} • {percent:.1f}% • {speed_text}"
         )
+        self.extract_percent_var.set(f"{percent:.1f}%")
         self.update_idletasks()
 
     def _reset_progress(self) -> None:
@@ -426,6 +449,8 @@ class InstallerApp(tk.Tk):
         self.extract_progress.set(0)
         self.download_info_var.set("Скорость: — • Объем: — • 0%")
         self.extract_info_var.set("Файлы: — • 0%")
+        self.download_percent_var.set("0%")
+        self.extract_percent_var.set("0%")
         self.update_idletasks()
 
     def _refresh_server_status(self) -> None:
