@@ -177,7 +177,7 @@ class InstallerApp(tk.Tk):
         super().__init__()
         self.title("Tricki Кластер серверов Factorio")
         self.geometry("720x420")
-        self.resizable(False, False)
+        self.resizable(True, True)
         self.configure(bg="#15130f")
 
         self.status_var = tk.StringVar(value="Готово к работе.")
@@ -191,6 +191,7 @@ class InstallerApp(tk.Tk):
         self._create_widgets()
         self._refresh_server_status()
         self._start_accent_animation()
+        self._fit_to_content()
 
     def _create_widgets(self) -> None:
         style = ttk.Style(self)
@@ -404,6 +405,13 @@ class InstallerApp(tk.Tk):
             style="Subtitle.TLabel",
         )
         info.pack(pady=(0, 12))
+
+    def _fit_to_content(self) -> None:
+        self.update_idletasks()
+        width = max(self.winfo_reqwidth(), 720)
+        height = max(self.winfo_reqheight(), 420)
+        self.geometry(f"{width}x{height}")
+        self.minsize(width, height)
 
     def _set_status(self, message: str) -> None:
         self.status_var.set(message)
