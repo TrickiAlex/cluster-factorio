@@ -17,6 +17,12 @@
 python app/main.py
 ```
 
+Для запуска без командной строки в Windows используйте:
+
+```bash
+pythonw app/main.pyw
+```
+
 ## Примечания
 
 - Оба URL должны отдавать архив (zip или tar.*).
