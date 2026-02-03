@@ -178,6 +178,7 @@ class InstallerApp(tk.Tk):
         self.extract_progress = tk.DoubleVar(value=0)
         self._create_widgets()
         self._refresh_server_status()
+        self._start_accent_animation()
 
     def _create_widgets(self) -> None:
         style = ttk.Style(self)
@@ -240,6 +241,17 @@ class InstallerApp(tk.Tk):
         header = ttk.Frame(self, style="Card.TFrame", padding=16)
         header.pack(fill="x", padx=18, pady=(18, 8))
 
+        accent_canvas = tk.Canvas(
+            header,
+            height=8,
+            highlightthickness=0,
+            bg="#1f1a16",
+        )
+        accent_canvas.pack(fill="x", pady=(0, 10))
+        self.accent_canvas = accent_canvas
+        self.accent_width = 120
+        self.accent_offset = 0
+
         title = ttk.Label(
             header,
             text="Tricki Кластер серверов Factorio",
@@ -262,13 +274,6 @@ class InstallerApp(tk.Tk):
             textvariable=self.server_status_var,
             style="Status.TLabel",
         ).pack(side="left")
-
-        ttk.Button(
-            status_row,
-            text="Обновить статус",
-            style="Secondary.TButton",
-            command=self._refresh_server_status,
-        ).pack(side="right")
 
         button_frame = ttk.Frame(self, style="Card.TFrame", padding=16)
         button_frame.pack(fill="x", padx=18, pady=8)
@@ -425,6 +430,38 @@ class InstallerApp(tk.Tk):
             message = f"Статус серверов: ошибка ({exc})"
         self.server_status_var.set(message)
         self.update_idletasks()
+
+    def _start_accent_animation(self) -> None:
+        self.accent_offset = 0
+        self._animate_accent()
+
+    def _animate_accent(self) -> None:
+        if not hasattr(self, "accent_canvas"):
+            return
+        canvas = self.accent_canvas
+        width = canvas.winfo_width() or 600
+        canvas.delete("accent")
+        x = self.accent_offset % (width + self.accent_width) - self.accent_width
+        canvas.create_rectangle(
+            x,
+            0,
+            x + self.accent_width,
+            8,
+            fill="#f59e0b",
+            outline="",
+            tags="accent",
+        )
+        canvas.create_rectangle(
+            x + self.accent_width * 0.6,
+            0,
+            x + self.accent_width * 0.9,
+            8,
+            fill="#f97316",
+            outline="",
+            tags="accent",
+        )
+        self.accent_offset += 6
+        self.after(60, self._animate_accent)
 
     def _show_info(self) -> None:
         try:
